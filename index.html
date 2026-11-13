@@ -233,7 +233,7 @@ footer{text-align:center;color:rgba(248,230,201,.55);padding:30px 20px calc(110p
     <h2 class="reveal">ذكرياتنا الحلوة</h2>
     <div class="orn reveal">✦ 📸 ✦</div>
     <div class="gallery reveal" id="gallery"></div>
-    <p class="hint reveal">دوسي على أي إطار تختاري صورة منكم. الصور دي بتظهر على جهازك بس، ومش بتتحفظ.</p>
+    <p class="hint reveal">صورنا الحلوة 💕</p>
   </section>
 
   <!-- السؤال -->
@@ -344,7 +344,7 @@ function sched(){
     nextT += eighth; step++;
   }
 }
-function startSynth(){
+function initAudio(){
   if(!ac){
     ac = new (window.AudioContext || window.webkitAudioContext)();
     master = ac.createGain(); master.gain.value = .85;
@@ -354,6 +354,9 @@ function startSynth(){
     master.connect(ac.destination); master.connect(dl); dl.connect(lp); lp.connect(fb); fb.connect(dl); lp.connect(ac.destination);
   }
   if(ac.state === 'suspended') ac.resume();
+}
+function startSynth(){
+  initAudio();
   nextT = ac.currentTime + .1; clearInterval(schedT); schedT = setInterval(sched, 120);
   playing = true; setMusicUI();
 }
@@ -362,11 +365,18 @@ function setMusicUI(){ $('#music').classList.toggle('playing', playing); $('#mus
 /* الأغنية: حطي ملف الـ mp3 جنب index.html بالاسم ده، ولو مش موجود بيشتغل اللحن الاحتياطي */
 const SONG_FILE = 'however-far-away.mp3';
 let song = null, songOk = true;
+function toast(t){
+  const d = document.createElement('div'); d.textContent = t;
+  d.style.cssText = 'position:fixed;z-index:99;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);max-width:88vw;text-align:center;background:rgba(26,5,16,.92);color:#f8e6c9;border:1px solid rgba(233,201,143,.5);border-radius:16px;padding:10px 18px;font-size:1rem';
+  document.body.appendChild(d); setTimeout(() => d.remove(), 6000);
+}
 function startMusic(){
+  try{ if(navigator.audioSession) navigator.audioSession.type = 'playback'; }catch(e){}
+  initAudio(); // لازم يتعمل جوه الضغطة مباشرة عشان iPhone
   if(songOk){
     if(!song){ song = new Audio(SONG_FILE); song.loop = true; song.volume = .85; }
     song.play().then(() => { playing = true; setMusicUI(); })
-      .catch(err => { if(err && err.name === 'NotAllowedError') return; songOk = false; startSynth(); });
+      .catch(err => { if(err && err.name === 'NotAllowedError') return; songOk = false; toast('ملف الأغنية مش لاقيه (' + SONG_FILE + ')، شغّلت لحن بديل'); startSynth(); });
   } else startSynth();
 }
 function stopMusic(){
@@ -418,9 +428,19 @@ tick(); setInterval(tick, 1000);
 
 /* ═════════ الذكريات ═════════ */
 const gal = $('#gallery');
+/* بيدوّر تلقائيًا على photo1.jpg … photo6.jpg (أو png / jpeg / webp) جنب index.html */
+const EXTS = ['jpg','jpeg','png','webp','JPG','JPEG','PNG','WEBP'];
+function loadPhoto(box, i){
+  const cands = PHOTOS[i] ? [PHOTOS[i]] : ['photo','Photo'].flatMap(b => EXTS.map(e => `${b}${i+1}.${e}`));
+  let k = 0; const im = new Image(); im.alt = '';
+  im.onload = () => { box.innerHTML = ''; box.appendChild(im); };
+  im.onerror = () => { if(++k < cands.length) im.src = cands[k]; };
+  im.src = cands[0];
+}
 CAPTIONS.forEach((c,i) => {
   const f = document.createElement('figure'); f.className = 'pol';
-  f.innerHTML = `<div class="ph">${PHOTOS[i] ? `<img src="${PHOTOS[i]}" alt="${c}">` : `<span><span class="ic">📷</span>صورتنا هنا</span>`}</div><figcaption>${c}</figcaption>`;
+  f.innerHTML = `<div class="ph"><span><span class="ic">📷</span>صورتنا هنا</span></div><figcaption>${c}</figcaption>`;
+  loadPhoto(f.querySelector('.ph'), i);
   const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.hidden = true;
   inp.onchange = () => { const file = inp.files[0]; if(!file) return;
     const box = f.querySelector('.ph'); box.innerHTML = ''; const im = new Image(); im.src = URL.createObjectURL(file); box.appendChild(im); };
